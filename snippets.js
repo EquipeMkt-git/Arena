@@ -29,7 +29,19 @@
 
   /* Página de entrada: sorteia, grava a atribuição e redireciona sem acrescentar parâmetro nenhum.
      Parâmetro novo fura o cache do LiteSpeed (medido: 0,3 s para 1,3 s). UTM e fbclid não furam. */
+  /* Versão publicada: o script vira assíncrono (data: URI) para não esperar o CSS do tema,
+     e um preload busca a configuração em paralelo desde o início da página. */
   function codigoEntrada(exp, db) {
+    const html = codigoEntradaInline(exp, db);
+    const ini = html.indexOf('<script'), abre = html.indexOf('>', ini) + 1, fim = html.lastIndexOf('</script>');
+    const js = html.slice(abre, fim);
+    const b64 = typeof Buffer !== 'undefined' ? Buffer.from(js, 'utf8').toString('base64') : btoa(unescape(encodeURIComponent(js)));
+    const cfg = `${db}/config/${exp.id}.json`;
+    return html.slice(0, ini).replace('crossorigin>\n', `crossorigin>\n<link rel="preload" href="${cfg}" as="fetch" crossorigin="anonymous">\n`) +
+      `<script async data-no-optimize="1" data-no-defer="1" data-cfasync="false" src="data:text/javascript;base64,${b64}"></script>`;
+  }
+
+  function codigoEntradaInline(exp, db) {
     const pag = {}, pesos = {};
     exp.variantes.forEach(v => { pag[v.id] = v.url; pesos[v.id] = Number(v.peso) || 0; });
     const reserva = JSON.stringify({status: 'ativo', pesos, paginas: pag, cfgv: 0}).replace(/</g, '\\u003c');
@@ -86,7 +98,7 @@
   }
   var ctrl = window.AbortController ? new AbortController() : null;
   setTimeout(function () { if (ctrl) ctrl.abort(); seguir(null); }, ESPERA);
-  fetch(DB + "/config/" + EXP + ".json", {cache: "no-store", signal: ctrl ? ctrl.signal : undefined})
+  fetch(DB + "/config/" + EXP + ".json", {signal: ctrl ? ctrl.signal : undefined})
     .then(function (r) { return r.ok ? r.json() : null; }).then(seguir).catch(function () { seguir(null); });
 })();
 <\/script>`;
@@ -180,6 +192,6 @@
 <\/script>`;
   }
 
-  const api = {codigoEntrada, codigoPaginas, caminhoDe};
+  const api = {codigoEntrada, codigoEntradaInline, codigoPaginas, caminhoDe};
   if (typeof module !== 'undefined') module.exports = api; else raiz.ArenaSnippets = api;
 })(typeof window !== 'undefined' ? window : globalThis);
