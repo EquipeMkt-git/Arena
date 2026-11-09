@@ -10,6 +10,15 @@
     try { if (navigator.sendBeacon) { if (navigator.sendBeacon(u, new Blob([b], {type: "text/plain;charset=UTF-8"}))) return; } } catch (e) {}
     try { fetch(u, {method: "POST", body: b, keepalive: true, headers: {"Content-Type": "text/plain;charset=UTF-8"}}); } catch (e) {}
   }
+  /* Etapa do funil: depende do registro já existir no banco, então confere a resposta e tenta de novo. */
+  function enviarEtapa(caminho, tentativa) {
+    var u = DB + "/" + caminho + ".json?x-http-method-override=PUT", n = tentativa || 0;
+    try {
+      fetch(u, {method: "POST", body: '{".sv":"timestamp"}', keepalive: true, headers: {"Content-Type": "text/plain;charset=UTF-8"}})
+        .then(function (r) { if (!r.ok) { if (n < 3) setTimeout(function () { enviarEtapa(caminho, n + 1); }, 1500 * (n + 1)); } })
+        .catch(function () { if (n < 3) setTimeout(function () { enviarEtapa(caminho, n + 1); }, 1500 * (n + 1)); });
+    } catch (e) {}
+  }
   function dispositivo() { var u = navigator.userAgent;
     if (/iPad|Tablet/i.test(u)) return "tablet"; if (/Mobi|iPhone/i.test(u)) return "celular"; if (/Android/i.test(u)) return "tablet"; return "computador"; }`;
 
@@ -111,13 +120,14 @@
       if (q.get("utm_source")) r.src = q.get("utm_source").slice(0, 120);
       if (q.get("utm_campaign")) r.cmp = q.get("utm_campaign").slice(0, 120);
       if (teste) r.x = true;
+      r.ver = {".sv": "timestamp"}; ls("arena_ver_" + vid, "1");
       enviar(base, r, "PUT");
     }
   } else return;
 
   function marca(campo) {
     var k = "arena_" + campo + "_" + vid; if (ls(k)) return; ls(k, "1");
-    enviar(base + "/" + campo, {".sv": "timestamp"}, "PUT");
+    enviarEtapa(base + "/" + campo);
   }
   if (pagina) marca("ver"); else return marca("obr");
 

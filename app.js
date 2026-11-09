@@ -433,6 +433,10 @@ if (DEMO) {
   render();
 } else {
   iniciarFirebase().catch(e => { $('#raiz').innerHTML = `<div class="centro"><p class="aviso">Não foi possível carregar o Firebase: ${esc(e.message)}</p></div>`; });
+  /* Aba aberta em segundo plano às vezes não termina o primeiro carregamento. */
+  setTimeout(() => {
+    if ($('#raiz .carregando')) $('#raiz').innerHTML = `<div class="centro"><div class="cartao-login"><p>O painel demorou para carregar.</p><button class="btn principal" onclick="location.reload()">Recarregar</button></div></div>`;
+  }, 12000);
 }
 
 /* Só para testes locais. */
