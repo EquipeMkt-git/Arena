@@ -7,7 +7,7 @@
   function aleatorio(n) { var s = "", a = new Uint8Array(n), i; (window.crypto || window.msCrypto).getRandomValues(a); for (i = 0; i < n; i++) s += (a[i] % 36).toString(36); return s; }
   function enviar(caminho, dados, metodo) {
     var u = DB + "/" + caminho + ".json?x-http-method-override=" + metodo, b = JSON.stringify(dados);
-    try { if (navigator.sendBeacon && navigator.sendBeacon(u, new Blob([b], {type: "text/plain;charset=UTF-8"}))) return; } catch (e) {}
+    try { if (navigator.sendBeacon) { if (navigator.sendBeacon(u, new Blob([b], {type: "text/plain;charset=UTF-8"}))) return; } } catch (e) {}
     try { fetch(u, {method: "POST", body: b, keepalive: true, headers: {"Content-Type": "text/plain;charset=UTF-8"}}); } catch (e) {}
   }
   function dispositivo() { var u = navigator.userAgent;
@@ -40,7 +40,7 @@
 
   function ir(url) {
     var d; try { d = new URL(url); } catch (e) { return; }
-    q.forEach(function (valor, chave) { if (chave !== "arena" && !d.searchParams.has(chave)) d.searchParams.set(chave, valor); });
+    q.forEach(function (valor, chave) { if (chave !== "arena") { if (!d.searchParams.has(chave)) d.searchParams.set(chave, valor); } });
     location.replace(d.toString());
   }
   function sortear(c) {
@@ -55,8 +55,8 @@
   function decidir(c) {
     var guardada = null;
     try { guardada = JSON.parse(ls("arena_" + EXP)); } catch (e) {}
-    if (c.status === "encerrado" && c.vencedora && c.paginas[c.vencedora]) return ir(c.paginas[c.vencedora]);
-    if (guardada && c.paginas[guardada.v]) return ir(c.paginas[guardada.v]);
+    if (c.status === "encerrado") { if (c.vencedora ? c.paginas[c.vencedora] : false) return ir(c.paginas[c.vencedora]); }
+    if (guardada ? c.paginas[guardada.v] : false) return ir(c.paginas[guardada.v]);
     if (c.status === "pausado") return ir(c.paginas[Object.keys(c.paginas).sort()[0]]);
     var v = sortear(c);
     if (robo) return ir(c.paginas[v]);
@@ -70,9 +70,10 @@
   }
   function seguir(c) {
     if (feito) return; feito = true;
-    if (c && c.paginas && c.pesos) ls("arena_cfg_" + EXP, JSON.stringify(c));
+    function valida(x) { return x ? (x.paginas ? !!x.pesos : false) : false; }
+    if (valida(c)) ls("arena_cfg_" + EXP, JSON.stringify(c));
     else { try { c = JSON.parse(ls("arena_cfg_" + EXP)); } catch (e) { c = null; } }
-    decidir(c && c.paginas && c.pesos ? c : RESERVA);
+    decidir(valida(c) ? c : RESERVA);
   }
   var ctrl = window.AbortController ? new AbortController() : null;
   setTimeout(function () { if (ctrl) ctrl.abort(); seguir(null); }, ESPERA);
@@ -94,11 +95,11 @@
   var MAPA = ${JSON.stringify(mapa).replace(/</g, '\\u003c')}, OBRIGADO = ${JSON.stringify(obrig)};
   var p = location.pathname; if (p.charAt(p.length - 1) !== "/") p += "/";
   var pagina = MAPA[p], ctx = null, direta = false, base, vid, v;
-  if (!pagina && p !== OBRIGADO) return;
+  if (!pagina) { if (p !== OBRIGADO) return; }
   try { ctx = JSON.parse(ls("arena_" + EXP)); } catch (e) {}
   var teste = !!ls("arena_teste");
 
-  if (ctx && (!pagina || ctx.v === pagina)) { vid = ctx.id; v = ctx.v; base = "visitas/" + EXP + "/" + vid; }
+  if (ctx ? (!pagina || ctx.v === pagina) : false) { vid = ctx.id; v = ctx.v; base = "visitas/" + EXP + "/" + vid; }
   else if (pagina) {
     /* Veio direto, sem passar pelo sorteio, ou abriu outra variante: fica fora da comparação. */
     direta = true; v = pagina;
@@ -131,11 +132,11 @@
     var r = {v: v, t: {".sv": "timestamp"}, tipo: tipo, d: direta}; if (teste) r.x = true;
     enviar("erros/" + EXP + "/" + aleatorio(24), r, "PUT");
   }
-  function ehForm(el) { return el && el.closest && el.closest("form.elementor-form"); }
+  function ehForm(el) { return (el ? !!el.closest : false) ? el.closest("form.elementor-form") : null; }
 
   document.addEventListener("click", function (ev) {
-    var a = ev.target && ev.target.closest ? ev.target.closest("a,button") : null;
-    if (a && !ehForm(a)) { var h = a.getAttribute("href") || ""; if (h.charAt(0) === "#" || /elementor-button/.test(a.className)) marca("clk"); }
+    var a = (ev.target ? !!ev.target.closest : false) ? ev.target.closest("a,button") : null;
+    if (a ? !ehForm(a) : false) { var h = a.getAttribute("href") || ""; if (h.charAt(0) === "#" || /elementor-button/.test(a.className)) marca("clk"); }
   }, true);
   document.addEventListener("focusin", function (ev) { if (ehForm(ev.target)) marca("ini"); }, true);
   document.addEventListener("submit", function (ev) { if (ehForm(ev.target)) { marca("ini"); marca("env"); } }, true);
@@ -144,10 +145,10 @@
   (function ligar() {
     var $ = window.jQuery; if (!$) return setTimeout(ligar, 300);
     $(document).ajaxComplete(function (e, xhr, o) {
-      var d = o && o.data; if (!d || !d.get || d.get("action") !== "elementor_pro_forms_send_form") return;
-      var j = xhr.responseJSON;
-      if (j && j.success === true) return sucesso();
-      if (j && j.data && j.data.errors && Object.keys(j.data.errors).length) return falha("validacao");
+      var d = o ? o.data : null; if (!d || !d.get || d.get("action") !== "elementor_pro_forms_send_form") return;
+      var j = xhr.responseJSON || {}, dj = j.data || {};
+      if (j.success === true) return sucesso();
+      if (dj.errors ? Object.keys(dj.errors).length : 0) return falha("validacao");
       falha("integracao");
     });
     $(document).on("submit_success", "form.elementor-form", sucesso);
