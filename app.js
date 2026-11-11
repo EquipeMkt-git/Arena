@@ -235,7 +235,8 @@ function errosPorCampo(e, flt) {
 }
 
 /* Visitas que chegaram direto nas páginas, sem sorteio. Servem de referência, nunca para declarar vencedora. */
-function provavelRobo(d) { return !d.src && d.disp === 'computador' && d.ok && (d.ok - d.t) < 20000; }
+/* Padrão do robô visto em nov/2026: sem UTM, computador, envia em menos de 60 s e nunca chega ao obrigado. */
+function provavelRobo(d) { return !d.src && d.disp === 'computador' && d.ok && !d.obr && (d.ok - d.t) < 60000; }
 function trafegoDireto(e, flt) {
   const nome = Object.fromEntries(e.variantes.map(v => [v.id, v.nome]));
   const todas = Object.values(S.diretas).filter(d => !d.x && (!flt.desde || d.t >= flt.desde));
@@ -247,7 +248,7 @@ function trafegoDireto(e, flt) {
   lista.forEach(d => { const k = (d.cmp || (d.src ? '(sem campanha)' : '(sem UTM)')) + '|' + d.v; (cmps[k] = cmps[k] || []).push(d); });
   const topo = Object.entries(cmps).map(([k, arr]) => ({cmp: k.split('|')[0], v: k.split('|')[1], ...linha(arr)})).sort((a, b) => b.vis - a.vis).slice(0, 12);
   return `<section class="bloco"><h2>Tráfego direto (fora do sorteio)</h2>
-    <p class="nota">Visitas que entraram direto nas páginas, por links antigos ou outras campanhas. Os públicos são diferentes em cada página, então isso é referência, não comparação: a vencedora só sai do sorteio.${robos.length ? ` ${num(robos.length)} cadastros com cara de robô (sem UTM, computador, formulário enviado em menos de 20 s) foram tirados desta tabela.` : ''}</p>
+    <p class="nota">Visitas que entraram direto nas páginas, por links antigos ou outras campanhas. Os públicos são diferentes em cada página, então isso é referência, não comparação: a vencedora só sai do sorteio.${robos.length ? ` ${num(robos.length)} cadastros com cara de robô (sem UTM, computador, formulário enviado em menos de 60 s e sem chegar ao obrigado) foram tirados desta tabela.` : ''}</p>
     <div class="rolagem"><table><thead><tr><th>Página</th><th>Visitas</th><th>Iniciaram</th><th>Cadastros</th><th>Taxa</th></tr></thead><tbody>
     ${porPag.map(l => `<tr><td><i class="chip" style="--c:${CORES[l.id]}">${l.id}</i>${esc(nome[l.id])}</td><td>${num(l.vis)}</td><td>${num(l.ini)}</td><td>${num(l.ok)}</td><td>${pct(l.taxa)}</td></tr>`).join('')}
     </tbody></table></div>
