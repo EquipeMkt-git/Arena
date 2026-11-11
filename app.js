@@ -224,7 +224,7 @@ function errosPorCampo(e, flt) {
   if (!lista.length) return '';
   const comCampo = lista.filter(x => x.campos);
   const porCampo = {};
-  comCampo.forEach(x => x.campos.split(' | ').forEach(c => { const k = c.trim(); (porCampo[k] = porCampo[k] || {total: 0}); porCampo[k].total++; porCampo[k][x.v] = (porCampo[k][x.v] || 0) + 1; }));
+  comCampo.forEach(x => [...new Set(x.campos.split('|').map(c => c.trim()).filter(Boolean))].forEach(k => { (porCampo[k] = porCampo[k] || {total: 0}); porCampo[k].total++; porCampo[k][x.v] = (porCampo[k][x.v] || 0) + 1; }));
   const linhas = Object.entries(porCampo).sort((a, b) => b[1].total - a[1].total);
   const ids = e.variantes.map(v => v.id);
   const tab = linhas.length ? `<div class="rolagem"><table><thead><tr><th>Campo</th><th>Total</th>${ids.map(i => `<th><i class="chip" style="--c:${CORES[i]}">${i}</i>${esc(nome[i])}</th>`).join('')}</tr></thead><tbody>
