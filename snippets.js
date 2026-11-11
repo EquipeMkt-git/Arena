@@ -150,8 +150,15 @@
     var r = {v: v, t: {".sv": "timestamp"}, vid: vid, d: direta}; if (teste) r.x = true;
     enviar("cadastros/" + EXP + "/" + aleatorio(24), r, "PUT");
   }
-  function falha(tipo) {
+  /* Nome do campo que deu erro: o rótulo do campo na página, nunca o que a pessoa digitou. */
+  function rotulo(chave) {
+    var el = document.querySelector('[name="form_fields[' + chave + ']"]'), g = el ? el.closest(".elementor-field-group") : null;
+    var lb = g ? g.querySelector("label") : null, t = lb ? lb.textContent.replace(/\\s+/g, " ").trim() : "";
+    return (t || chave).slice(0, 40);
+  }
+  function falha(tipo, chaves) {
     var r = {v: v, t: {".sv": "timestamp"}, tipo: tipo, d: direta}; if (teste) r.x = true;
+    if (chaves) { if (chaves.length) r.campos = chaves.map(rotulo).join(" | ").slice(0, 120); }
     enviar("erros/" + EXP + "/" + aleatorio(24), r, "PUT");
   }
   function ehForm(el) { return (el ? !!el.closest : false) ? el.closest("form.elementor-form") : null; }
@@ -170,7 +177,7 @@
       var d = o ? o.data : null; if (!d || !d.get || d.get("action") !== "elementor_pro_forms_send_form") return;
       var j = xhr.responseJSON || {}, dj = j.data || {};
       if (j.success === true) return sucesso();
-      if (dj.errors ? Object.keys(dj.errors).length : 0) return falha("validacao");
+      if (dj.errors ? Object.keys(dj.errors).length : 0) return falha("validacao", Object.keys(dj.errors));
       falha("integracao");
     });
     $(document).on("submit_success", "form.elementor-form", sucesso);

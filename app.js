@@ -167,7 +167,7 @@ function telaResultados() {
   const diretas = Object.values(S.diretas).filter(d => !d.x);
   if (diretas.length) avisos.push(`Visitas diretas nas páginas, sem passar pelo sorteio: ${num(diretas.length)}, com ${num(diretas.filter(d => d.ok).length)} cadastro(s). Ficam fora da comparação.`);
 
-  return `${filtros}${avisos.map(a => `<p class="aviso">${esc(a)}</p>`).join('')}${placar(V, R, e)}${tabela(R)}${funil(R)}${aoVivo(e)}
+  return `${filtros}${avisos.map(a => `<p class="aviso">${esc(a)}</p>`).join('')}${placar(V, R, e)}${tabela(R)}${funil(R)}${errosPorCampo(e, flt)}${trafegoDireto(e, flt)}${aoVivo(e)}
     <p class="nota">Dados de ${S.dadosEm ? quando(S.dadosEm) : quando(Date.now())}. Atualiza sozinho.${R.teste ? ` ${num(R.teste)} registros de teste excluídos.` : ''}</p>`;
 }
 
@@ -215,6 +215,46 @@ function funil(R) {
   const max = Math.max(1, ...R.linhas.map(l => l.unicos));
   return `<section class="bloco"><h2>Funil</h2><p class="nota">Cadastro confirmado só conta com a resposta de sucesso do servidor. Chegar ao obrigado é só uma conferência.</p>
     <div class="funil" style="margin-top:12px">${et.map(([r, k]) => `<div class="funil-linha"><span>${r}</span><div class="barras">${R.linhas.map(l => `<div class="barra"><i style="--c:${CORES[l.id]};width:${l[k] / max * 80}%"></i>${l.id}: ${num(l[k])}</div>`).join('')}</div></div>`).join('')}</div></section>`;
+}
+
+/* Erros de validação por campo, em todas as visitas (sorteio e diretas). O campo vem do rótulo da página, nunca do que foi digitado. */
+function errosPorCampo(e, flt) {
+  const nome = Object.fromEntries(e.variantes.map(v => [v.id, v.nome]));
+  const lista = Object.values(S.erros).filter(x => !x.x && x.tipo === 'validacao' && (!flt.desde || x.t >= flt.desde));
+  if (!lista.length) return '';
+  const comCampo = lista.filter(x => x.campos);
+  const porCampo = {};
+  comCampo.forEach(x => x.campos.split(' | ').forEach(c => { const k = c.trim(); (porCampo[k] = porCampo[k] || {total: 0}); porCampo[k].total++; porCampo[k][x.v] = (porCampo[k][x.v] || 0) + 1; }));
+  const linhas = Object.entries(porCampo).sort((a, b) => b[1].total - a[1].total);
+  const ids = e.variantes.map(v => v.id);
+  const tab = linhas.length ? `<div class="rolagem"><table><thead><tr><th>Campo</th><th>Total</th>${ids.map(i => `<th><i class="chip" style="--c:${CORES[i]}">${i}</i>${esc(nome[i])}</th>`).join('')}</tr></thead><tbody>
+    ${linhas.map(([k, o]) => `<tr><td>${esc(k)}</td><td>${num(o.total)}</td>${ids.map(i => `<td>${num(o[i] || 0)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+  const semCampo = lista.length - comCampo.length;
+  return `<section class="bloco"><h2>Erros de preenchimento por campo</h2>
+    <p class="nota">${num(lista.length)} envios voltaram com erro de validação no período, contando sorteio e visitas diretas. Um envio pode ter mais de um campo com erro.${semCampo ? ` ${num(semCampo)} são de antes do registro do campo e ficam fora da tabela.` : ''}</p>${tab}</section>`;
+}
+
+/* Visitas que chegaram direto nas páginas, sem sorteio. Servem de referência, nunca para declarar vencedora. */
+function provavelRobo(d) { return !d.src && d.disp === 'computador' && d.ok && (d.ok - d.t) < 20000; }
+function trafegoDireto(e, flt) {
+  const nome = Object.fromEntries(e.variantes.map(v => [v.id, v.nome]));
+  const todas = Object.values(S.diretas).filter(d => !d.x && (!flt.desde || d.t >= flt.desde));
+  if (!todas.length) return '';
+  const robos = todas.filter(provavelRobo), lista = todas.filter(d => !provavelRobo(d));
+  const linha = arr => { const vis = arr.filter(d => d.ver).length, ok = arr.filter(d => d.ok).length; return {vis, ini: arr.filter(d => d.ini || d.env || d.ok).length, ok, taxa: vis ? ok / vis : null}; };
+  const porPag = e.variantes.map(v => ({id: v.id, ...linha(lista.filter(d => d.v === v.id))}));
+  const cmps = {};
+  lista.forEach(d => { const k = (d.cmp || (d.src ? '(sem campanha)' : '(sem UTM)')) + '|' + d.v; (cmps[k] = cmps[k] || []).push(d); });
+  const topo = Object.entries(cmps).map(([k, arr]) => ({cmp: k.split('|')[0], v: k.split('|')[1], ...linha(arr)})).sort((a, b) => b.vis - a.vis).slice(0, 12);
+  return `<section class="bloco"><h2>Tráfego direto (fora do sorteio)</h2>
+    <p class="nota">Visitas que entraram direto nas páginas, por links antigos ou outras campanhas. Os públicos são diferentes em cada página, então isso é referência, não comparação: a vencedora só sai do sorteio.${robos.length ? ` ${num(robos.length)} cadastros com cara de robô (sem UTM, computador, formulário enviado em menos de 20 s) foram tirados desta tabela.` : ''}</p>
+    <div class="rolagem"><table><thead><tr><th>Página</th><th>Visitas</th><th>Iniciaram</th><th>Cadastros</th><th>Taxa</th></tr></thead><tbody>
+    ${porPag.map(l => `<tr><td><i class="chip" style="--c:${CORES[l.id]}">${l.id}</i>${esc(nome[l.id])}</td><td>${num(l.vis)}</td><td>${num(l.ini)}</td><td>${num(l.ok)}</td><td>${pct(l.taxa)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <h3 style="font-size:14px;margin:16px 0 4px">Principais campanhas diretas</h3>
+    <div class="rolagem"><table><thead><tr><th>Campanha</th><th>Página</th><th>Visitas</th><th>Cadastros</th><th>Taxa</th></tr></thead><tbody>
+    ${topo.map(l => `<tr><td style="word-break:break-all">${esc(l.cmp)}</td><td>${esc(nome[l.v] || l.v)}</td><td>${num(l.vis)}</td><td>${num(l.ok)}</td><td>${pct(l.taxa)}</td></tr>`).join('')}
+    </tbody></table></div></section>`;
 }
 
 function aoVivo(e) {
